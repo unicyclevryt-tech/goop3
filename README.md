@@ -1,24 +1,23 @@
-# Goop — Vercel 404 fix
+# Goop — Scramjet storage repair
 
-This package preserves Goop's page and assets, builds Scramjet/BareMux/Libcurl into `dist/`, and explicitly tells Vercel to publish **dist**, not the source `public` folder.
+## Fast fix for the `NotFoundError: transaction on IDBDatabase` error
 
-## Apply
-1. Replace the matching files at the root of your `unicyclevryt-tech/Gooprelease` repository. `vercel.json` must be **in the repository root** next to `package.json`. Keep the folders `public/` and `scripts/`.
-2. In Vercel, choose the repository root as Root Directory, then Redeploy (clear build cache if offered).
-3. Watch the Build Logs: `npm run build` must complete, showing `OK scram/scramjet.all.js`, `OK baremux/index.js` and `OK libcurl/index.mjs`.
-4. Visit `https://gooprelease.vercel.app/runtime-health.json` and check `ready: true`.
-5. Test `https://gooprelease.vercel.app/scram/scramjet.all.js`, `/baremux/index.js`, and `/libcurl/index.mjs`: each must serve JavaScript, not a 404 page.
-6. Clear old service workers for the site (DevTools > Application > Service Workers > Unregister; then reload). Browser cache can retain old broken paths.
+1. Replace `public/sw.js` and add `public/repair.html` in your GitHub repository. The ZIP also includes the unchanged Goop site, build script, and `vercel.json`.
+2. Redeploy on Vercel (the project must publish the `dist/` build output).
+3. Open `https://gooprelease.vercel.app/repair.html` and click **Reset proxy storage**.
+4. Close all other Goop tabs, then return to the homepage and hard-refresh (Ctrl+Shift+R).
+5. Try one search.
 
-## Important
-This fixes the **missing static runtime** issue, not every possible Scramjet problem.
-Vercel static hosting does not expose the persistent local `/wisp/` WebSocket server from Node. Select an accessible **external `wss://` Wisp relay** in Goop Settings or use a separately hosted Wisp server. A WebSocket handshake alone does not guarantee proxy support.
+The repair page unregisters service workers and deletes only proxy-related IndexedDB databases. It does not erase Goop's localStorage bookmarks/settings. It can clear login sessions within proxied websites.
 
-`Failed to save file to disk` may refer to browser cache/storage or a separate Vercel build error. If this persists, inspect the *first* occurrence in DevTools Network/Console or Vercel's Build Logs.
+## Why this happened
+A stale or incompatible Scramjet IndexedDB schema can be missing an object store. `sw.js` previously called `scramjet.loadConfig()` for every request, even a favicon, triggering repeated rejected fetches. The new worker only loads proxy config for requests inside `/scramjet/` and catches storage errors.
 
-## Local checks
-```
-npm install
-npm run build
-```
-Look inside `dist/scram/`, `dist/baremux/` and `dist/libcurl/`.
+## If the error remains
+In Chrome: DevTools > Application > IndexedDB, remove Scramjet-related databases; Application > Service Workers > Unregister; refresh. (The browser may need all Goop tabs closed for IndexedDB deletion.)
+
+Check that `/scram/scramjet.all.js`, `/baremux/index.js`, and `/libcurl/index.mjs` all return HTTP 200 after deploy.
+
+`bare-mux: SharedWorker ... retrying` may be a consequence of failed worker startup, but can also be a separate error. Check Chrome's `chrome://inspect/#workers` and the browser console if the IndexedDB error disappears but connectivity still fails.
+
+The change has been syntax-checked but a live Vercel proxy search has not been verified.

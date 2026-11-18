@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Goop — Repair browser</title><style>
+body{font-family:system-ui,sans-serif;background:#07110c;color:#e4f8e8;max-width:670px;margin:8vh auto;padding:24px;line-height:1.55}
+button{padding:14px 18px;border:0;border-radius:9px;background:#9ce7a9;color:#06130a;font-weight:700;cursor:pointer}
+pre{white-space:pre-wrap;background:#10231a;padding:14px;border-radius:9px}
+a{color:#a6e5ad}
+</style></head><body>
+<h1>Repair Goop browser</h1>
+<p>This clears <strong>Scramjet/BareMux proxy databases and service workers</strong> for this site. It keeps Goop bookmarks and settings in localStorage. Proxy login/session data might be lost.</p>
+<button id="repair">Reset proxy storage</button>
+<pre id="log">Press the button to begin.</pre>
+<p><a href="./">Return to Goop</a></p>
+<script>
+const output=document.getElementById('log'),btn=document.getElementById('repair');
+function log(line){output.textContent+='\n'+line}
+function removeDB(name){
+ return new Promise(resolve=>{
+  const req=indexedDB.deleteDatabase(name);let finished=false;
+  const done=s=>{if(!finished){finished=true;log(s);resolve()}};
+  req.onsuccess=()=>done('Deleted '+name);
+  req.onerror=()=>done('Could not delete '+name+': '+(req.error?.message||'unknown error'));
+  req.onblocked=()=>done('Blocked by open tabs: '+name+' — close other Goop tabs and retry.');
+  setTimeout(()=>done('Timed out deleting '+name),5000);
+ });
+}
+btn.onclick=async()=>{
+ btn.disabled=true;output.textContent='Repairing…';
+ try{
+  // Stop old SW before clearing databases so it cannot recreate broken stores.
+  const regs=await navigator.serviceWorker.getRegistrations();
+  for(const reg of regs){
+    if(new URL(reg.scope).origin===location.origin) {
+      await reg.unregister();log('Unregistered worker: '+reg.scope);
+    }
+  }
+  if(!indexedDB.databases){log('Database enumeration unsupported. Use DevTools → Application → IndexedDB to remove Scramjet DBs.');}
+  else{
+   const dbs=await indexedDB.databases();
+   const matches=dbs.map(x=>x.name).filter(Boolean).filter(n=>/scramjet|bare.?mux|mercury/i.test(n));
+   if(matches.length===0)log('No matching proxy databases found');
+   for(const name of matches)await removeDB(name);
+  }
+  log('Finished. Close other Goop tabs, then return to Goop and refresh once.');
+ }catch(e){log('Repair error: '+e.message)}
+ btn.disabled=false;
+};
+</script></body></html>
